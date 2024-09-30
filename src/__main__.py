@@ -1,28 +1,20 @@
 import os
 import telebot
 import random
-import sqlite3
 import logging
 from telebot import types, logger
 from config.configToken import TOKEN
 from module.other.checkFromat import check
 from module.other.map_pool import random_from_val
-from module.funcBD.updataBalance import updataBalance
 from module.other.roulette_casino import game_rulette_casino
+from module.funcBD.func_on_db import updataBalance, createdDB, add_user_db, get_user_db
 
 bot = telebot.TeleBot(TOKEN)
 casino_mode = None
 stavka = None
 balance = 0
 
-# Создание локальной БД если её нет
-conn = sqlite3.connect("./data/database/user_casino.sql")
-cur = conn.cursor()
-cur.execute("""CREATE TABLE IF NOT EXISTS user_casino (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id int, balance int, username varchar(50))""")
-conn.commit()
-cur.close()
-conn.close()
-
+createdDB()
 
 # Обработка /start
 @bot.message_handler(commands=['start'])
@@ -71,19 +63,8 @@ def on_click(message):
 
 # Обработка /roulette
 @bot.message_handler(commands=['roulette'])
-def roulette_cas(message):
-    conn = sqlite3.connect('data/database/user_casino.sql')
-    cur = conn.cursor()
-    cur.execute(f"""SELECT * FROM user_casino WHERE user_id = {message.from_user.id}""")
-    user = cur.fetchall()
-    
-    # Если пользователь с таким user_id отсуствует -> создаем нового пользователя в БД
-    if user == []:
-        cur.execute("""INSERT INTO user_casino (id, user_id, balance, username) VALUES (NULL, '%s', %s, '%s')""" % (message.from_user.id, 1000, message.from_user.username))
-        conn.commit()
-    
-    cur.close()
-    conn.close()
+def roulette_cas(message):    
+    add_user_db(message.from_user.id, message.from_user.username)
     
     if message.text == '/roulette' or message.text == 'Да, давай' or message.text.lower() == 'да' or message.text.lower() == '+' or message.text.lower() == 'yes':
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
@@ -131,12 +112,7 @@ def next_roulette(message):
 
 # Вывод данных профиля игрока
 def profile(message):
-    conn = sqlite3.connect('data/database/user_casino.sql')
-    cur = conn.cursor()
-    cur.execute(f"""SELECT * FROM user_casino WHERE user_id = {message.from_user.id}""")
-    user = cur.fetchall()
-    cur.close()
-    conn.close()
+    user = get_user_db(message.from_user.id)
     bot.send_message(message.chat.id, f"Игрок: {user[0][3]}\nБаланс: {user[0][2]}💰")
     bot.send_message(message.chat.id, "Не заубдьте выбрать один из режимов игры:\n1. На красное или черное\n2. Нечетное или четное\n3. Ставка на конкретное число\n4. Ставка «Малые и большие номера»\n5. Дюжины")
     bot.register_next_step_handler(message, next_roulette)
@@ -145,13 +121,8 @@ def next_roulette_rate(message):
     global casino_mode
     global balance
     casino_mode = message.text # Сохранили на что ставим (красное, черное, число, первая дюжина и т.д.)
-    conn = sqlite3.connect('data/database/user_casino.sql')
-    cur = conn.cursor()
-    cur.execute(f"""SELECT balance FROM user_casino WHERE user_id = {message.from_user.id}""")
-    user = cur.fetchall()
-    balance = user[0][0]
-    cur.close()
-    conn.close()
+    user = get_user_db(message.from_user.id)
+    balance = user[0][2]
     bot.send_message(message.chat.id, f"Какую сумму хотите поставить (напишите в чат)?\nВаш баланс: {balance}💰")
     
     if casino_mode == "🔴Красное🔴" or casino_mode.lower() == "красное" or casino_mode.lower() == "к" or casino_mode == '⚫Черное⚫' or casino_mode.lower() == "черное" or casino_mode.lower() == "чёрное" or casino_mode.lower() == "ч":
