@@ -1,7 +1,7 @@
-def check(stavka, balance):
+def check(bet, balance):
     try:
-        s = int(stavka)
+        s = int(bet)
         b = int(balance)
         return True
-    except:
+    except ValueError:
         return False
